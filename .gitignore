@@ -145,7 +145,6 @@ env.bak/
 venv.bak/
 cache/
 
-
 # Spyder project settings
 .spyderproject
 .spyproject
