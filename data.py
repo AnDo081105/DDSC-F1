@@ -107,7 +107,7 @@ def main():
 
     all_data = []
     years_collected = []
-    current_year = year - 1
+    current_year = year 
 
     # Keep goin back till enough years of data collected
     while len(years_collected) <= min_year and current_year >= year - max_year:
