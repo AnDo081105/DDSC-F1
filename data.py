@@ -110,7 +110,7 @@ def main():
     current_year = year - 1
 
     # Keep goin back till enough years of data collected
-    while len(years_collected) < min_year and current_year >= year - max_year:
+    while len(years_collected) <= min_year and current_year >= year - max_year:
         try:
             print(f"Collecting data for {event_name} {current_year}")
             event_data = get_event_data(current_year, event_name)
