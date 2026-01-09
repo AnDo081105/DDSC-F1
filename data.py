@@ -15,10 +15,14 @@ ff1.Cache.enable_cache(cache_dir)
 
 def get_event_data(year, event_name):
     '''
-    Get each driver fastest lap for a conventional event (FP1, FP2, FP3, Q, R)
+    Get each session data for a given event and year, including weather conditions.
 
-    returns:
-    dataframe of all drivers fastest laps for the event
+    Arguments:
+    year -- int, the year of the event
+    event_name -- str, the name of the event
+
+    Returns:
+    pd.DataFrame -- DataFrame containing driver data and weather conditions for each session
     '''
     session_types = ['FP1', 'FP2', 'FP3', 'Q', 'R']
     final_results = {}
@@ -27,30 +31,49 @@ def get_event_data(year, event_name):
         try:
             session = ff1.get_session(year, event_name, session_type)
             session.load()
-        
+
+            # Add weather condition for each session
+            weather = session.weather_data
+            weather_condition = {}
+            if weather is not None and not weather.empty:
+                weather_condition = {
+                    f'{session_type}_air_temp': weather['AirTemp'].mean(),
+                    f'{session_type}_humidity': weather['Humidity'].mean(),
+                    f'{session_type}_rainfall': weather['Rainfall'].mean(),
+                    f'{session_type}_pressure': weather['Pressure'].mean(),
+                    f'{session_type}_wind_speed': weather['WindSpeed'].mean(),
+                    f'{session_type}_wind_direction': weather['WindDirection'].mean(),
+                    f'{session_type}_track_temp': weather['TrackTemp'].mean()
+                }
+
+            # Choose unique drivers in the session
             drivers = session.laps['Driver'].unique()
             for driver in drivers:
+
+                # Initialize driver entry if not already present
                 if driver not in final_results:
+                    
+                    # Basic driver info
                     final_results[driver] = {
                         'driver_number': session.laps.loc[session.laps['Driver'] == driver, 'DriverNumber'].iloc[0],
+                        'driver': driver,
                         'year': year,
                         'event': event_name,
-                        'team': session.laps.loc[session.laps['Driver'] == driver, 'Team'].iloc[0]
+                        'team': session.laps.loc[session.laps['Driver'] == driver, 'Team'].iloc[0],
                     }
                 driver_laps = session.laps.pick_driver(driver)
-                    
+                
+                # For each driver laps, get average sector times and total time
                 if not driver_laps.empty:
                     sector_times = driver_laps[['Sector1Time', 'Sector2Time', 'Sector3Time']].mean().dropna()             
                     total_times = sector_times.sum().total_seconds() if not sector_times.isna().any() else None
-
                     final_results[driver] = {
                         **final_results[driver],
-                        f'{session_type}_sector1_time': sector_times['Sector1Time'].total_seconds() if 'Sector1Time' in sector_times else None,
-                        f'{session_type}_sector2_time': sector_times['Sector2Time'].total_seconds() if 'Sector2Time' in sector_times else None,
-                        f'{session_type}_sector3_time': sector_times['Sector3Time'].total_seconds() if 'Sector3Time' in sector_times else None,
+                        **weather_condition,
                         f'{session_type}_total_time': total_times
                     }
             
+            # In race, get final classified position
             if session_type == 'R':
                 result_positions = session.results[['ClassifiedPosition', 'Abbreviation']]
                 result_positions_df = pd.DataFrame(result_positions).set_index('Abbreviation')
