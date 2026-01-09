@@ -1,3 +1,6 @@
+# When enter a race session and a year, 
+# the code will collect data from n previous year race in the same event.
+
 import os
 import fastf1 as ff1
 import argparse
@@ -90,26 +93,57 @@ def get_event_data(year, event_name):
     return df
 
 def main():
-    # Get arguments from command line
-    parser = argparse.ArgumentParser(description='Get F1 event data')
+    arg_parser = argparse.ArgumentParser(description="F1 Data Pipeline")
+    arg_parser.add_argument('--event', type=str, required=True, help='Event name (e.g., "Australia Grand Prix")')
+    arg_parser.add_argument('--year', type=int, required=True, help='Year of the event (e.g., 2025)')
+    arg_parser.add_argument('--min_year', type=int, default=3, help='Minimum number of previous years of data to collect')
+    arg_parser.add_argument('--max_year', type=int, default=10, help='Maximum number of previous years of data to collect')
+    args = arg_parser.parse_args()
 
-    parser.add_argument('--year', type=int, required=True, help='Year of the event')
-    parser.add_argument('--event', type=str, required=True, help='Name of the event (e.g., "Australia Grand Prix")')
+    event_name = args.event
+    year = args.year
+    min_year = args.min_year
+    max_year = args.max_year
 
-    args = parser.parse_args()
+    all_data = []
+    years_collected = []
+    current_year = year - 1
 
-    print(f"Getting data for {args.event} {args.year}...")
-    df = get_event_data(args.year, args.event)
+    # Keep goin back till enough years of data collected
+    while len(years_collected) < min_year and current_year >= year - max_year:
+        try:
+            print(f"Collecting data for {event_name} {current_year}")
+            event_data = get_event_data(current_year, event_name)
+            if not event_data.empty:
+                all_data.append(event_data)
+                years_collected.append(current_year)
+                print(f"Data collected for {event_name} {current_year}")
+        except Exception as e:
+            print(f"Error collecting data for {event_name} {current_year}: {e}")
+        current_year -= 1
 
-    # Dataset Folder
-    dataset_dir = 'dataset'
-    if not os.path.exists(dataset_dir):
-        os.makedirs(dataset_dir)
-    output_file = os.path.join(dataset_dir, f"{args.event.replace(' ', '_')}_{args.year}_data.csv")
-    df.to_csv(output_file, index=False)
-    print(f"Data saved to {output_file} in dir: {dataset_dir}")
+    if len(years_collected) < min_year:
+        print(f"Warning: Only collected data for {len(years_collected)} years, which is less than the minimum required {min_year} years.")
+    else:
+        print(f"Successfully collected data for {len(years_collected)} years.")
+        
+        
+    # Combine all years data
+    if all_data:
+        df = pd.concat(all_data, ignore_index=True)
 
-    return df
+        # Dataset Folder
+        dataset_dir = 'dataset'
+        if not os.path.exists(dataset_dir):
+            os.makedirs(dataset_dir)
+        output_file = os.path.join(dataset_dir, f"{event_name.replace(' ', '_')}_{year}_data.csv")
+        df.to_csv(output_file, index=False)
+        print(f"Data saved to {output_file} in dir: {dataset_dir}")
+
+        return df
+    else:
+        print("No data collected.")
+        return None
 
 if __name__ == "__main__":
     main()
