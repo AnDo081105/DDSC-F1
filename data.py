@@ -3,11 +3,14 @@
 
 import os
 import fastf1 as ff1
+import logging
 import argparse
 import matplotlib.pyplot as plt
 import pandas as pd
 import warnings
 warnings.filterwarnings('ignore')
+
+logging.getLogger('fastf1').setLevel(logging.WARNING)
 
 # Create cache directory if it doesn't exist
 cache_dir = 'cache'
@@ -127,8 +130,8 @@ def main():
 
             except Exception as e:
                 print(f"Could not collect data for {event_name} in {current_year}: {e}")
-                continue
-            current_year -= 1
+            finally:
+                current_year -= 1
 
         if all_data:
             merged_data = pd.concat(all_data, ignore_index=True)
