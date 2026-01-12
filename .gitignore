@@ -144,6 +144,7 @@ ENV/
 env.bak/
 venv.bak/
 cache/
+catboost_info/
 
 # Spyder project settings
 .spyderproject
