@@ -3,11 +3,14 @@
 
 import os
 import fastf1 as ff1
+import logging
 import argparse
 import matplotlib.pyplot as plt
 import pandas as pd
 import warnings
 warnings.filterwarnings('ignore')
+
+logging.getLogger('fastf1').setLevel(logging.WARNING)
 
 # Create cache directory if it doesn't exist
 cache_dir = 'cache'
@@ -80,10 +83,10 @@ def get_event_data(year, event_name):
         session_r = ff1.get_session(year, event_name, 'R')
         session_r.load()
         
-        race_laps = session_r.laps[['Driver', 'LapTime']].copy()
+        race_laps = session_r.laps.copy()
         race_laps = race_laps.dropna(subset=['LapTime'])
         race_laps['Race_Time'] = race_laps['LapTime'].dt.total_seconds()
-        race_laps = race_laps[['Driver', 'Race_Time']]
+        race_laps = race_laps[['Driver', 'Race_Time', 'LapNumber', 'Position', 'Compound', 'TyreLife']]
 
         # Add weather condition
         weather = session_r.weather_data[['AirTemp', 'TrackTemp', 'Humidity', 'WindSpeed', 'Rainfall', 'Pressure']]
@@ -107,14 +110,32 @@ def get_event_data(year, event_name):
 def main():
     # Get 2026 Schedule
     schedule_2025 = ff1.get_event_schedule(2025)
+    test_data = []
+    for _, event in schedule_2025.iterrows():
+        event_name = event['EventName']
+        print(f"Preparing test data for event: {event_name}")
+        try:
+            event_data = get_event_data(2025, event_name)
+            test_data.append(event_data)
+        except Exception as e:
+            print(f"Could not prepare test data for {event_name} in 2025: {e}")
 
+    if test_data:
+        test_merged = pd.concat(test_data, ignore_index=True)
+        test_output_file = 'dataset/test_data_2025.csv'
+        test_merged.to_csv(test_output_file, index=False)
+        print(f"\nTest data for 2025 saved to {test_output_file}")
+        print(f"Total rows: {len(test_merged)}")
+        print(f"Total events: {test_merged['EventName'].nunique()}")
+        print(f"Years covered: {sorted(test_merged['Year'].unique())}")
+    
+    train_data = []
     # Collect data from previous years for each event in 2025
     for _, event in schedule_2025.iterrows():
-        all_data = []
         event_name = event['EventName']
         print(f"Collecting data for event: {event_name}")
 
-        current_year = 2025
+        current_year = 2024
         year_collected = []
         min_year = 3
         max_year = 10
@@ -122,25 +143,30 @@ def main():
         while len(year_collected) < min_year and current_year >= 2025 - max_year:
             try:
                 event_data = get_event_data(current_year, event_name)
-                all_data.append(event_data)
+                train_data.append(event_data)
                 year_collected.append(current_year)
 
             except Exception as e:
                 print(f"Could not collect data for {event_name} in {current_year}: {e}")
-                continue
-            current_year -= 1
+            finally:
+                current_year -= 1
 
-        if all_data:
-            merged_data = pd.concat(all_data, ignore_index=True)
-            # Save to CSV
-            dataset_dir = 'dataset'
-            if not os.path.exists(dataset_dir):
-                os.makedirs(dataset_dir)
+    if train_data:
+        merged_data = pd.concat(train_data, ignore_index=True)
+        
+        # Save to single CSV
+        dataset_dir = 'dataset'
+        if not os.path.exists(dataset_dir):
+            os.makedirs(dataset_dir)
 
-            csv_filename = f"{event_name.replace(' ', '_')}_data.csv"
-            output_file = os.path.join(dataset_dir, csv_filename)
-            merged_data.to_csv(output_file, index=False)
-            print(f"Data for {event_name} saved to {output_file}")
+        output_file = os.path.join(dataset_dir, 'train_data.csv')
+        merged_data.to_csv(output_file, index=False)
+        print(f"\nAll data saved to {output_file}")
+        print(f"Total rows: {len(merged_data)}")
+        print(f"Total events: {merged_data['EventName'].nunique()}")
+        print(f"Years covered: {sorted(merged_data['Year'].unique())}")
+    else:
+        print("No data collected")
 
 if __name__ == "__main__":
     main()
